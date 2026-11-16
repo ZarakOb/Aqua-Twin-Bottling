@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AquaTwin Bottling Line</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout: live 3D bottling line on the left, operations panels on the right; stacks on phones */
+  --bg:#08121a;
+  --panel:#0d1a24;
+  --panel-2:#12232f;
+  --line:#1e3442;
+  --ink:#e1ecf2;
+  --muted:#86a0ae;
+  --accent:#4cc3ff;
+  --ok:#56d08a;
+  --warn:#f3b64a;
+  --crit:#ff5f57;
+  --display:'IBM Plex Sans Condensed','Arial Narrow',sans-serif;
+  --body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--body);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:grid;grid-template-rows:auto 1fr;height:100%}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel);position:relative;z-index:5}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand h1{font:600 19px/1 var(--display);letter-spacing:.02em;margin:0}
+.brand h1 b{color:var(--accent);font-weight:600}
+.brand small{color:var(--muted);font-size:12px}
+.sim-badge{font:500 10.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);padding:4px 6px;border-radius:4px}
+.seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px;gap:2px}
+.seg button{background:none;border:0;padding:6px 10px;border-radius:6px;cursor:pointer;color:var(--muted);font-weight:500;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.seg button:hover{color:var(--ink)}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{background:var(--panel-2);border:1px solid var(--line);padding:7px 12px;border-radius:8px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.fault{border-color:color-mix(in srgb,var(--crit) 55%,transparent);color:#ffb3ae}
+.btn.fix{border-color:color-mix(in srgb,var(--ok) 55%,transparent);color:#a9efc6}
+.fault-wrap{position:relative}
+.menu{position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;width:270px;box-shadow:0 12px 30px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px;z-index:10}
+.menu button{background:none;border:0;text-align:left;padding:8px 10px;border-radius:7px;cursor:pointer}
+.menu button:hover,.menu button:focus-visible{background:var(--panel-2)}
+.menu button b{display:block;font-weight:600;font-size:13.5px}
+.menu button span{color:var(--muted);font-size:12px}
+.menu button[disabled]{opacity:.4;cursor:default}
+
+main{display:grid;grid-template-columns:minmax(0,1fr) 420px;min-height:0}
+#view{position:relative;min-height:0;overflow:hidden;background:#0a1620}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
+#tags{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.tag{position:absolute;left:0;top:0;font:500 11px/1.25 var(--mono);background:rgba(6,14,20,.84);border:1px solid var(--line);border-left:3px solid var(--ok);padding:3px 6px;border-radius:4px;white-space:nowrap;color:var(--ink);will-change:transform}
+.tag.warn{border-left-color:var(--warn)} .tag.crit{border-left-color:var(--crit);background:rgba(50,12,12,.88)} .tag.idle{border-left-color:var(--muted)}
+.tag span{color:var(--muted)}
+.hud{position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.chip{display:inline-flex;align-items:center;gap:8px;background:rgba(6,14,20,.86);border:1px solid var(--line);padding:6px 10px;border-radius:8px;font:500 12px/1.2 var(--mono)}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent);animation:pulse 1.6s infinite}
+.chip.stop .dot{background:var(--crit);box-shadow:0 0 0 3px color-mix(in srgb,var(--crit) 25%,transparent)}
+@keyframes pulse{50%{opacity:.35}}
+.view-tools{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.view-tools .seg{background:rgba(6,14,20,.86)}
+.view-tools .seg button{font-size:12.5px;padding:5px 9px}
+.view-tools .row{display:flex;gap:6px}
+.view-tools .btn{background:rgba(6,14,20,.86);font-size:12.5px;padding:5px 10px}
+.view-tools .btn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.hint{position:absolute;left:12px;bottom:10px;color:var(--muted);font-size:11.5px;pointer-events:none;background:rgba(6,14,20,.6);padding:3px 7px;border-radius:5px}
+
+aside{border-left:1px solid var(--line);overflow:auto;background:var(--bg);padding:12px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+.card h2{font:600 12.5px/1 var(--display);text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 10px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card h2 em{font:500 11px var(--mono);text-transform:none;letter-spacing:0;font-style:normal;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.tile{background:var(--panel-2);border-radius:8px;padding:8px}
+.tile .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.tile .v{font:500 18px/1.15 var(--mono);font-variant-numeric:tabular-nums;margin-top:2px}
+.tile .u{font-size:10.5px;color:var(--muted);font-family:var(--mono)}
+.alerts{display:flex;flex-direction:column;gap:8px}
+.alert{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:8px;background:color-mix(in srgb,var(--ok) 9%,var(--panel));border:1px solid color-mix(in srgb,var(--ok) 30%,transparent)}
+.alert.warn{background:color-mix(in srgb,var(--warn) 10%,var(--panel));border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
+.alert.crit{background:color-mix(in srgb,var(--crit) 12%,var(--panel));border-color:color-mix(in srgb,var(--crit) 45%,transparent)}
+.alert .sev{flex:none;width:10px;height:10px;border-radius:2px;margin-top:5px;background:var(--ok)}
+.alert.warn .sev{background:var(--warn)} .alert.crit .sev{background:var(--crit)}
+.alert b{display:block;font-weight:600}
+.alert p{margin:2px 0 0;color:var(--muted);font-size:12.5px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{font:500 10.5px var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:0 6px 6px 0}
+td{padding:7px 6px 7px 0;border-top:1px solid var(--line);vertical-align:middle}
+td:last-child,th:last-child{padding-right:0;text-align:right}
+td .sub{display:block;color:var(--muted);font-size:11px}
+.pill{display:inline-block;font:500 10.5px/1 var(--mono);padding:3px 6px;border-radius:999px;background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok);white-space:nowrap}
+.pill.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.pill.crit{background:color-mix(in srgb,var(--crit) 20%,transparent);color:#ff8a84}
+.pill.idle{background:var(--line);color:var(--muted)}
+.valves{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+.valve{border-radius:5px;padding:5px 2px;text-align:center;background:color-mix(in srgb,var(--ok) 16%,var(--panel-2));border:1px solid transparent}
+.valve b{display:block;font:500 10px var(--mono);color:var(--muted)}
+.valve span{font:500 11px var(--mono);font-variant-numeric:tabular-nums}
+.valve.warn{background:color-mix(in srgb,var(--warn) 22%,var(--panel-2))}
+.valve.crit{background:color-mix(in srgb,var(--crit) 28%,var(--panel-2));border-color:var(--crit)}
+.legend{display:flex;gap:12px;color:var(--muted);font-size:11px;margin-top:8px;flex-wrap:wrap}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+canvas.chart{width:100%;height:60px;display:block;background:#06101a;border-radius:6px;margin:4px 0 8px}
+.kv{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:4px 0;border-top:1px solid var(--line)}
+.kv:first-of-type{border-top:0}
+.kv span:first-child{color:var(--muted)}
+.water-grid{display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:start}
+.tank{position:relative;height:150px;border:2px solid var(--line);border-radius:10px 10px 14px 14px;overflow:hidden;background:#06101a}
+.tank i{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(#4cc3ffcc,#1d6fa5cc);transition:height .2s linear}
+.tank span{position:absolute;inset:auto 0 6px 0;text-align:center;font:500 15px var(--mono);text-shadow:0 1px 3px #000}
+.tank em{position:absolute;top:6px;left:0;right:0;text-align:center;font:500 10px var(--mono);color:var(--muted);font-style:normal}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.log{list-style:none;margin:0;padding:0;font-size:12px;max-height:220px;overflow:auto}
+.log li{display:grid;grid-template-columns:62px 8px 1fr;gap:8px;align-items:baseline;padding:5px 0;border-top:1px solid var(--line)}
+.log li:first-child{border-top:0}
+.log time{font-family:var(--mono);color:var(--muted);font-size:11px}
+.log .d{width:7px;height:7px;border-radius:50%;background:var(--accent);align-self:center}
+.log .warn .d{background:var(--warn)} .log .crit .d{background:var(--crit)} .log .ok .d{background:var(--ok)}
+[hidden]{display:none!important}
+@media (max-width:900px){
+  .app{display:block;height:auto}
+  main{display:block}
+  #view{height:58vh;min-height:340px}
+  aside{border-left:0;overflow:visible}
+  .brand small,.hint{display:none}
+  .view-tools{top:auto;bottom:10px;right:10px;left:10px;align-items:stretch}
+  .view-tools .seg{overflow-x:auto}
+  .view-tools .row{justify-content:flex-end}
+}
+@media (max-width:420px){
+  .tiles{grid-template-columns:repeat(2,1fr)}
+  header{padding:10px 12px} aside{padding:10px}
+  .valves{grid-template-columns:repeat(6,1fr)}
+  .menu{right:auto;left:0}
+}
+@media (prefers-reduced-motion:reduce){.chip .dot{animation:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <h1><b>Aqua</b>Twin</h1>
+      <small>Mineral water filling &amp; packing line</small>
+      <span class="sim-badge">Simulated data</span>
+    </div>
+    <div class="ctrl">
+      <button class="btn" id="playBtn">Pause</button>
+      <div class="seg" role="group" aria-label="Simulation speed" id="speedSeg">
+        <button data-s="1" aria-pressed="true">1×</button>
+        <button data-s="2" aria-pressed="false">2×</button>
+        <button data-s="4" aria-pressed="false">4×</button>
+        <button data-s="8" aria-pressed="false">8×</button>
+      </div>
+      <div class="fault-wrap">
+        <button class="btn fault" id="faultBtn" aria-expanded="false" aria-controls="faultMenu">Inject fault</button>
+        <div class="menu" id="faultMenu" hidden>
+          <button data-f="valve"><b>Filler valve V07 seal wear</b><span>Under-filled bottles, rejected at inspection</span></button>
+          <button data-f="capper"><b>Capper head clutch slip</b><span>Cap torque drifts low, loose caps</span></button>
+          <button data-f="ro"><b>RO membrane fouling</b><span>Treated water runs short, filler starves</span></button>
+        </div>
+      </div>
+      <button class="btn fix" id="fixBtn" hidden>Run maintenance</button>
+    </div>
+  </header>
+  <main>
+    <div id="view">
+      <div id="tags"></div>
+      <div class="hud">
+        <div class="chip" id="hudState"><span class="dot"></span><span id="hudStateTxt">Running</span></div>
+        <div class="chip" id="hudMain">Line 1 · 00:00:00</div>
+      </div>
+      <div class="view-tools">
+        <div class="seg" role="group" aria-label="Camera" id="camSeg">
+          <button data-c="overview" aria-pressed="true">Overview</button>
+          <button data-c="water" aria-pressed="false">Water</button>
+          <button data-c="mono" aria-pressed="false">Filling</button>
+          <button data-c="pack" aria-pressed="false">Packing</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="labelBtn" aria-pressed="true">Labels</button>
+        </div>
+      </div>
+      <div class="hint">Drag to orbit · scroll or pinch to zoom</div>
+    </div>
+    <aside>
+      <section class="card">
+        <h2>Line 1 · 500 ml still <em id="shiftClock">Shift 00:00:00</em></h2>
+        <div class="tiles">
+          <div class="tile"><div class="k">Speed</div><div class="v" id="kBph">0</div><div class="u">bottles/hr</div></div>
+          <div class="tile"><div class="k">OEE</div><div class="v" id="kOee">—</div><div class="u">%</div></div>
+          <div class="tile"><div class="k">Good</div><div class="v" id="kGood">0</div><div class="u">this shift</div></div>
+          <div class="tile"><div class="k">Rejects</div><div class="v" id="kRej">0.0</div><div class="u">%</div></div>
+        </div>
+      </section>
+      <section class="card"><h2>Twin prediction</h2><div class="alerts" id="alerts"></div></section>
+      <section class="card">
+        <h2>Machines</h2>
+        <table><thead><tr><th>Machine</th><th>State</th><th>Reading</th></tr></thead><tbody id="mRows"></tbody></table>
+      </section>
+      <section class="card">
+        <h2>Filler valves <em>last fill, ml · target 500.0</em></h2>
+        <div class="valves" id="valves"></div>
+        <div class="legend"><span><i style="background:color-mix(in srgb,var(--ok) 50%,#12232f)"></i>±1.5 ml</span><span><i style="background:var(--warn)"></i>±2.5 ml</span><span><i style="background:var(--crit)"></i>Out of spec</span></div>
+      </section>
+      <section class="card">
+        <h2>Capper torque <em>spec 1.4–2.2 N·m</em></h2>
+        <canvas class="chart" id="torqueChart" width="780" height="120" aria-label="Cap application torque trend"></canvas>
+        <div class="kv"><span>Mean of last 20 caps</span><span class="num" id="tqMean">—</span></div>
+        <div class="kv"><span>Loose caps rejected</span><span class="num" id="tqRej">0</span></div>
+      </section>
+      <section class="card">
+        <h2>Water treatment <em>RO · UV · ozone</em></h2>
+        <div class="water-grid">
+          <div class="tank" id="tank"><em>Product tank</em><i style="height:70%"></i><span>70%</span></div>
+          <div>
+            <canvas class="chart" id="tdsChart" width="560" height="120" aria-label="Permeate TDS trend"></canvas>
+            <div class="kv"><span>RO permeate flow</span><span class="num" id="wFlow">—</span></div>
+            <div class="kv"><span>Permeate TDS</span><span class="num" id="wTds">—</span></div>
+            <div class="kv"><span>Membrane ΔP</span><span class="num" id="wDp">—</span></div>
+            <div class="kv"><span>Ozone residual</span><span class="num" id="wO3">—</span></div>
+            <div class="kv"><span>UV dose · pH</span><span class="num" id="wUv">—</span></div>
+          </div>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Palletising <em>6-packs · 12 per layer · 3 layers</em></h2>
+        <div class="kv"><span>Current pallet</span><span class="num" id="pNow">0 / 36 packs</span></div>
+        <div class="bar"><i id="pBar" style="width:0%"></i></div>
+        <div class="kv"><span>Pallets completed</span><span class="num" id="pDone">0</span></div>
+        <div class="kv"><span>Label roll remaining</span><span class="num" id="pRoll">—</span></div>
+      </section>
+      <section class="card"><h2>Event log</h2><ul class="log" id="log"></ul></section>
+    </aside>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function(){
+const $ = s => document.querySelector(s);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const smooth = x => { x = clamp(x,0,1); return x*x*(3-2*x); };
+const rnd = (a,b) => a + Math.random()*(b-a);
+const gauss = () => { let u=0,v=0; while(!u) u=Math.random(); while(!v) v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
+const fmt = s => { s=Math.max(0,Math.floor(s)); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); };
+const fmtH = s => { s=Math.floor(s); return [Math.floor(s/3600), Math.floor(s/60)%60, s%60].map(n=>String(n).padStart(2,'0')).join(':'); };
+
+/* ---------------- Renderer ---------------- */
+const view = $('#view');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+view.insertBefore(renderer.domElement, view.firstChild);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a1620);
+scene.fog = new THREE.Fog(0x0a1620, 26, 60);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 150);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI*0.48; controls.minDistance = 1.5; controls.maxDistance = 40;
+scene.add(new THREE.HemisphereLight(0xd8eeff, 0x15242d, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.75); sun.position.set(6,12,8); scene.add(sun);
+const fill = new THREE.DirectionalLight(0x9fd4ff, 0.3); fill.position.set(-8,5,-6); scene.add(fill);
+
+function M(color, o){ return new THREE.MeshStandardMaterial(Object.assign({color, metalness:.15, roughness:.6}, o||{})); }
+function add(p, geo, mat, x, y, z){ const m = new THREE.Mesh(geo, mat); m.position.set(x||0,y||0,z||0); p.add(m); return m; }
+const box = (p,w,h,d,mat,x,y,z) => add(p, new THREE.BoxGeometry(w,h,d), mat, x,y,z);
+const cyl = (p,rt,rb,h,mat,x,y,z,seg,open) => add(p, new THREE.CylinderGeometry(rt,rb,h,seg||24,1,!!open), mat, x,y,z);
+const UP = new THREE.Vector3(0,1,0), _d = new THREE.Vector3();
+function placeLink(mesh, a, b){ _d.subVectors(b,a); const L=_d.length(); mesh.position.copy(a).addScaledVector(_d,.5); mesh.scale.set(1,Math.max(L,1e-4),1); if (L>1e-5) mesh.quaternion.setFromUnitVectors(UP,_d.normalize()); }
+function unitCyl(r, mat, p){ const m = new THREE.Mesh(new THREE.CylinderGeometry(r,r,1,14), mat); p.add(m); return m; }
+
+const matSteel = M(0xc6d2d9,{metalness:.85, roughness:.25});
+const matFrame = M(0x3a4c57,{metalness:.5, roughness:.45});
+const matWhite = M(0xdfe8ec,{roughness:.4});
+const matDark = M(0x22323c,{roughness:.7});
+const matGlass = new THREE.MeshStandardMaterial({color:0x9fd4ff, transparent:true, opacity:.1, roughness:.1, depthWrite:false});
+const matBelt = M(0x2a3a44,{roughness:.85});
+const matAccent = new THREE.MeshBasicMaterial({color:0x4cc3ff});
+
+const world = new THREE.Group(); scene.add(world);
+add(world, new THREE.PlaneGeometry(48, 24), M(0x15232c,{roughness:.95}), 1.5, 0, -1).rotation.x = -Math.PI/2;
+const grid = new THREE.GridHelper(48, 48, 0x253b47, 0x1b2d37); grid.position.set(1.5,0.002,-1); world.add(grid);
+[-3.2, 2.4].forEach(z => box(world, 34, 0.005, 0.08, new THREE.MeshBasicMaterial({color:0xf3b64a}), 2, 0.004, z));
+box(world, 48, 5, 0.12, M(0x10202a), 1.5, 2.5, -8.6);
+
+/* =================================================================
+   Bottle path: infeed → rinser (90°) → filler (180°) → capper (90°) → outfeed
+   ================================================================= */
+const CONV_Y = 0.95;
+const PITCH = 2*Math.PI*1.6/24;          // one filler valve pitch
+const R1 = 0.8, R2 = 1.6, R3 = 0.8;
+const XR = -6.5, ZC = -0.8;
+const C1 = {x:XR, z:ZC}, C2 = {x:XR+R1+R2, z:ZC}, C3 = {x:XR+R1+2*R2+R3, z:ZC};
+const X_START = -9.9, X_END = 8.2;
+const segs = [];
+function addLine(ax,az,bx,bz){ segs.push({type:'line', ax,az,bx,bz, len:Math.hypot(bx-ax,bz-az)}); }
+function addArc(c,r,a0,sweep,name){ segs.push({type:'arc', c, r, a0, sweep, sign:Math.sign(sweep), len:Math.abs(sweep)*r, name}); }
+addLine(X_START,0, XR,0);
+addArc(C1, R1, Math.PI/2, -Math.PI/2, 'rinser');
+addArc(C2, R2, Math.PI, Math.PI, 'filler');
+addArc(C3, R3, Math.PI, -Math.PI/2, 'capper');
+addLine(C3.x,0, X_END,0);
+let acc = 0; segs.forEach(s => { s.s0 = acc; acc += s.len; });
+const PATH_LEN = acc;
+const SEG = n => segs.find(s => s.name === n);
+const sOut0 = segs[4].s0;
+const X_LABEL = 1.6, X_INSP = 4.2;
+const S_LABEL = sOut0 + (X_LABEL - C3.x), S_INSP = sOut0 + (X_INSP - C3.x);
+function pathAt(s, out){
+  for (const g of segs){
+    if (s <= g.s0 + g.len || g === segs[segs.length-1]){
+      const u = s - g.s0;
+      if (g.type === 'line'){ const f = u/g.len; out.x = g.ax + (g.bx-g.ax)*f; out.z = g.az + (g.bz-g.az)*f; }
+      else { const a = g.a0 + g.sign*u/g.r; out.x = g.c.x + g.r*Math.cos(a); out.z = g.c.z + g.r*Math.sin(a); }
+      out.seg = g; out.u = u; return out;
+    }
+  }
+}
+function wheelAngle(g, dist){ return g.a0 + g.sign*(dist - g.s0)/g.r; }
+
+/* ---------------- Conveyors ---------------- */
+function conveyor(x0, x1, z, w){
+  const len = x1 - x0, cx = (x0+x1)/2;
+  box(world, len, 0.08, w||0.3, matBelt, cx, CONV_Y-0.04, z);
+  box(world, len, 0.1, 0.03, matSteel, cx, CONV_Y+0.02, z-(w||0.3)/2);
+  box(world, len, 0.1, 0.03, matSteel, cx, CONV_Y+0.02, z+(w||0.3)/2);
+  for (let x = x0+0.3; x < x1; x += 1.4){ box(world, 0.05, CONV_Y-0.08, 0.05, matSteel, x, (CONV_Y-0.08)/2, z); }
+}
+conveyor(X_START, XR, 0);
+conveyor(C3.x, X_END+0.2, 0);
+
+/* ---------------- Blow moulder ---------------- */
+const blm = new THREE.Group(); blm.position.set(-11.1, 0, 0); world.add(blm);
+box(blm, 2.4, 0.8, 1.8, matWhite, 0, 0.4, 0);
+box(blm, 2.4, 0.08, 1.8, matAccent, 0, 0.82, 0);
+box(blm, 2.4, 1.3, 0.04, matGlass, 0, 1.5, 0.9);
+box(blm, 2.4, 1.3, 0.04, matGlass, 0, 1.5, -0.9);
+box(blm, 2.4, 0.25, 1.8, matWhite, 0, 2.27, 0);
+[[-1.18,.88],[1.18,.88],[-1.18,-.88],[1.18,-.88]].forEach(([x,z]) => box(blm, 0.07, 1.4, 0.07, matFrame, x, 1.5, z));
+const blowWheel = new THREE.Group(); blowWheel.position.set(0, 1.25, 0); blm.add(blowWheel);
+cyl(blowWheel, 0.7, 0.7, 0.08, matFrame, 0, 0, 0, 32);
+const moulds = [];
+for (let k=0;k<8;k++){ const a = k/8*Math.PI*2; const m = box(blowWheel, 0.16, 0.36, 0.16, matSteel, Math.cos(a)*0.58, 0.22, Math.sin(a)*0.58); moulds.push(m); }
+const heater = box(blm, 0.6, 0.3, 0.5, new THREE.MeshStandardMaterial({color:0x5a2a10, emissive:0xff6a1a, emissiveIntensity:.6}), -0.75, 1.0, -0.45);
+// preform hopper
+cyl(world, 0.6, 0.15, 1.0, M(0x4b6a7a,{metalness:.5}), -12.5, 2.2, -1.7);
+cyl(world, 0.6, 0.6, 0.5, M(0x4b6a7a,{metalness:.5}), -12.5, 2.95, -1.7);
+const ramp = box(world, 0.15, 0.04, 1.6, matSteel, -12.0, 1.5, -1.0); ramp.rotation.x = -0.6;
+[-12.9,-12.1].forEach(x => box(world, 0.06, 2.0, 0.06, matFrame, x, 1.0, -1.7));
+
+/* ---------------- Monoblock: rinser / filler / capper ---------------- */
+const mono = new THREE.Group(); world.add(mono);
+box(mono, 6.8, 0.75, 4.0, matWhite, (C1.x+C3.x)/2, 0.375, ZC-0.2);
+box(mono, 6.8, 0.06, 4.0, matAccent, (C1.x+C3.x)/2, 0.78, ZC-0.2);
+// guarding
+const gx0 = C1.x-1.1, gx1 = C3.x+1.1, gz0 = ZC-2.4, gz1 = ZC+1.2;
+[[gx0,gz0],[gx1,gz0],[gx0,gz1],[gx1,gz1]].forEach(([x,z]) => box(mono, 0.06, 2.0, 0.06, matFrame, x, 1.75, z));
+box(mono, gx1-gx0, 1.6, 0.02, matGlass, (gx0+gx1)/2, 1.75, gz0);
+box(mono, gx1-gx0, 0.05, 0.05, matFrame, (gx0+gx1)/2, 2.75, gz0); box(mono, gx1-gx0, 0.05, 0.05, matFrame, (gx0+gx1)/2, 2.75, gz1);
+box(mono, 0.05, 0.05, gz1-gz0, matFrame, gx0, 2.75, (gz0+gz1)/2); box(mono, 0.05, 0.05, gz1-gz0, matFrame, gx1, 2.75, (gz0+gz1)/2);
+// rinser
+const rinser = new THREE.Group(); rinser.position.set(C1.x, CONV_Y-0.05, C1.z); mono.add(rinser);
+cyl(rinser, R1+0.15, R1+0.15, 0.06, matFrame, 0, 0, 0, 40);
+cyl(rinser, 0.1, 0.1, 1.2, matSteel, 0, 0.6, 0);
+for (let k=0;k<12;k++){ const a = k/12*Math.PI*2; box(rinser, 0.08, 0.06, 0.08, matDark, Math.cos(a)*R1, 0.55, Math.sin(a)*R1); }
+const spray = [];
+for (let k=0;k<20;k++){ const s = add(mono, new THREE.SphereGeometry(0.018,6,4), new THREE.MeshBasicMaterial({color:0xbfeaff, transparent:true, opacity:.8}), 0, -5, 0); s.userData = {v:new THREE.Vector3(), life:0}; spray.push(s); }
+// filler carousel
+const filler = new THREE.Group(); filler.position.set(C2.x, 0, C2.z); mono.add(filler);
+cyl(filler, R2+0.25, R2+0.25, 0.08, matFrame, 0, CONV_Y-0.06, 0, 64);
+cyl(filler, 0.22, 0.22, 1.5, matSteel, 0, 1.6, 0);
+const bowl = cyl(filler, 0.95, 0.95, 0.35, M(0xd5dfe4,{metalness:.8, roughness:.25}), 0, 2.15, 0, 48);
+cyl(filler, 0.96, 0.96, 0.02, matAccent, 0, 2.33, 0, 48);
+const fillerRot = new THREE.Group(); filler.add(fillerRot);
+const valves = [], streams = [];
+const streamMat = new THREE.MeshBasicMaterial({color:0x6fd0ff, transparent:true, opacity:.7});
+for (let k=0;k<24;k++){
+  const v = new THREE.Group(); fillerRot.add(v);
+  const arm = box(v, R2-0.9, 0.04, 0.05, matSteel, 0, 0, 0);
+  const body = cyl(v, 0.055, 0.055, 0.22, new THREE.MeshStandardMaterial({color:0xcfd9de, metalness:.7, roughness:.3, emissive:0x000000}), 0, -0.13, 0, 14);
+  const nozzle = cyl(v, 0.018, 0.012, 0.08, matSteel, 0, -0.28, 0, 10);
+  valves.push({g:v, arm, body});
+  const st = unitCyl(0.008, streamMat, mono); st.visible = false; streams.push(st);
+}
+// capper
+const capper = new THREE.Group(); capper.position.set(C3.x, 0, C3.z); mono.add(capper);
+cyl(capper, R3+0.15, R3+0.15, 0.06, matFrame, 0, CONV_Y-0.06, 0, 40);
+cyl(capper, 0.12, 0.12, 1.6, matSteel, 0, 1.75, 0);
+cyl(capper, R3+0.1, R3+0.1, 0.12, matWhite, 0, 2.15, 0, 40);
+const capHeads = [];
+for (let k=0;k<12;k++){
+  const h = new THREE.Group(); capper.add(h);
+  const rod = cyl(h, 0.02, 0.02, 0.5, matSteel, 0, 0.25, 0, 8);
+  const chuck = cyl(h, 0.045, 0.045, 0.09, new THREE.MeshStandardMaterial({color:0x3d5360, metalness:.6, roughness:.4, emissive:0x000000}), 0, 0, 0, 12);
+  capHeads.push({g:h, chuck});
+}
+const capChute = box(world, 0.12, 0.04, 2.0, matSteel, C3.x+0.95, 2.0, ZC+1.4); capChute.rotation.x = 0.45;
+box(world, 0.6, 0.5, 0.6, M(0x2f7fc1), C3.x+0.95, 2.9, ZC+2.3);
+
+/* ---------------- Labeller ---------------- */
+const lbl = new THREE.Group(); lbl.position.set(X_LABEL, 0, -0.65); world.add(lbl);
+box(lbl, 1.0, 0.9, 0.7, matWhite, 0, 0.45, 0);
+box(lbl, 1.0, 0.05, 0.7, matAccent, 0, 0.92, 0);
+const labelRoll = cyl(lbl, 0.3, 0.3, 0.12, M(0x2f7fc1), -0.15, 1.4, 0.0, 32); labelRoll.rotation.x = Math.PI/2;
+const rollCore = cyl(lbl, 0.08, 0.08, 0.14, matDark, -0.15, 1.4, 0, 16); rollCore.rotation.x = Math.PI/2;
+const drum = cyl(lbl, 0.16, 0.16, 0.18, matSteel, 0.25, 1.05, 0.3, 24);
+box(lbl, 0.04, 0.6, 0.04, matFrame, -0.15, 1.1, 0);
+
+/* ---------------- Inspection ---------------- */
+const ins = new THREE.Group(); ins.position.set(X_INSP, 0, 0); world.add(ins);
+[[-.35,-.5],[.35,-.5],[-.35,.5],[.35,.5]].forEach(([x,z]) => box(ins, 0.07, 1.9, 0.07, matFrame, x, 0.95, z));
+box(ins, 0.84, 0.35, 1.1, matWhite, 0, 1.95, 0);
+box(ins, 0.86, 0.05, 1.12, new THREE.MeshBasicMaterial({color:0xb9a4ff}), 0, 1.75, 0);
+const insLight = box(ins, 0.5, 0.04, 0.5, new THREE.MeshBasicMaterial({color:0x403760}), 0, 1.74, 0);
+const insCam = box(ins, 0.14, 0.2, 0.14, matDark, 0, 1.25, -0.42);
+const pusher = box(ins, 0.12, 0.12, 0.3, M(0xff5f57), 0.4, CONV_Y+0.15, -0.35);
+const rejectTable = box(world, 0.9, 0.06, 0.9, matSteel, X_INSP+0.5, CONV_Y-0.1, 1.15);
+box(world, 0.9, 0.12, 0.04, M(0xff5f57), X_INSP+0.5, CONV_Y-0.04, 1.6);
+box(world, 0.05, CONV_Y-0.13, 0.05, matSteel, X_INSP+0.5, (CONV_Y-0.13)/2, 1.15);
+
+/* ---------------- Shrink packer + palletiser ---------------- */
+const PK_X0 = 8.2, PICK_X = 13.6;
+const pkr = new THREE.Group(); pkr.position.set(8.9, 0, 0); world.add(pkr);
+box(pkr, 1.6, 0.85, 1.1, matWhite, 0, 0.425, 0);
+box(pkr, 1.6, 0.05, 1.1, matAccent, 0, 0.87, 0);
+box(pkr, 1.6, 0.9, 0.04, matGlass, 0, 1.35, 0.55); box(pkr, 1.6, 0.9, 0.04, matGlass, 0, 1.35, -0.55);
+box(pkr, 1.6, 0.15, 1.1, matWhite, 0, 1.85, 0);
+const filmRoll = cyl(pkr, 0.18, 0.18, 1.0, M(0xdde9ef,{roughness:.3}), -0.4, 0.55, -0.0, 24); filmRoll.rotation.x = Math.PI/2;
+const pkPress = box(pkr, 0.5, 0.06, 0.6, matSteel, 0.2, 1.6, 0);
+// pack conveyor
+box(world, PICK_X - 9.7 + 0.4, 0.08, 0.6, matBelt, (9.7+PICK_X+0.4)/2, CONV_Y-0.04, 0);
+for (let x = 10; x < PICK_X; x += 1.2) box(world, 0.05, CONV_Y-0.08, 0.05, matSteel, x, (CONV_Y-0.08)/2, 0);
+// shrink tunnel
+const tunnel = new THREE.Group(); tunnel.position.set(11.0, 0, 0); world.add(tunnel);
+box(tunnel, 1.8, 0.12, 0.9, matFrame, 0, 1.75, 0);
+box(tunnel, 1.8, 0.8, 0.06, matWhite, 0, 1.35, 0.45); box(tunnel, 1.8, 0.8, 0.06, matWhite, 0, 1.35, -0.45);
+const tunnelGlow = box(tunnel, 1.7, 0.02, 0.8, new THREE.MeshBasicMaterial({color:0xff7a2a, transparent:true, opacity:.55}), 0, 1.68, 0);
+const tunnelLight = new THREE.PointLight(0xff7a2a, 0.7, 2.2); tunnelLight.position.set(0, 1.3, 0); tunnel.add(tunnelLight);
+// pallet
+const PALLET = new THREE.Vector3(14.6, 0, 1.35);
+box(world, 1.9, 0.14, 1.05, M(0x9a7a4e,{roughness:.9}), PALLET.x, 0.07, PALLET.z);
+const palletRing = add(world, new THREE.RingGeometry(1.25, 1.31, 48), new THREE.MeshBasicMaterial({color:0x56d08a, side:THREE.DoubleSide}), PALLET.x, 0.006, PALLET.z); palletRing.rotation.x = -Math.PI/2;
+// cylindrical palletising robot
+const ROBOT = new THREE.Vector3(14.7, 0, -0.85);
+cyl(world, 0.35, 0.4, 0.25, matFrame, ROBOT.x, 0.125, ROBOT.z);
+const rbCol = cyl(world, 0.16, 0.16, 2.2, M(0xf3b64a,{roughness:.5}), ROBOT.x, 1.35, ROBOT.z);
+const rbArm = box(world, 1, 0.16, 0.16, M(0xf3b64a,{roughness:.5}), 0, 2.4, 0);
+const rbRod = unitCyl(0.04, matSteel, world);
+const rbGrip = box(world, 0.5, 0.06, 0.36, matDark, 0, 1.5, 0);
+const robotFence = new THREE.MeshBasicMaterial({color:0xf3b64a, transparent:true, opacity:.25, side:THREE.DoubleSide});
+const fence = add(world, new THREE.RingGeometry(2.45, 2.5, 64, 1, 0, Math.PI*2), robotFence, ROBOT.x, 0.006, ROBOT.z+0.6); fence.rotation.x = -Math.PI/2;
+
+/* ---------------- Water treatment ---------------- */
+const WZ = -5.6;
+const wt = new THREE.Group(); world.add(wt);
+function tankAt(x, r, h, label){
+  const g = new THREE.Group(); g.position.set(x, 0, WZ); wt.add(g);
+  cyl(g, r, r, h, new THREE.MeshStandardMaterial({color:0xcfe3ee, transparent:true, opacity:.18, metalness:.3, roughness:.15, depthWrite:false, side:THREE.DoubleSide}), 0, h/2+0.2, 0, 36, true);
+  add(g, new THREE.SphereGeometry(r, 36, 12, 0, Math.PI*2, 0, Math.PI/2), matSteel, 0, h+0.2, 0);
+  cyl(g, r, r, 0.2, matSteel, 0, 0.1, 0, 36);
+  const water = cyl(g, r*0.97, r*0.97, 1, new THREE.MeshStandardMaterial({color:0x2aa2e8, transparent:true, opacity:.55, roughness:.1, emissive:0x062b44}), 0, 0, 0, 36);
+  return {g, water, h, r};
+}
+const rawTank = tankAt(-12.0, 0.75, 2.4);
+// multimedia + carbon filters
+[-10.4,-9.6].forEach(x => { cyl(wt, 0.32, 0.32, 1.6, M(0x2f6f95,{metalness:.4, roughness:.35}), x, 1.0, WZ, 24); add(wt, new THREE.SphereGeometry(0.32,24,10,0,Math.PI*2,0,Math.PI/2), M(0x2f6f95,{metalness:.4}), x, 1.8, WZ); });
+// RO skid
+const ro = new THREE.Group(); ro.position.set(-7.8, 0, WZ); wt.add(ro);
+[[-1.1,-0.5],[1.1,-0.5],[-1.1,0.5],[1.1,0.5]].forEach(([x,z]) => box(ro, 0.07, 1.9, 0.07, matFrame, x, 0.95, z));
+const roVessels = [];
+for (let k=0;k<4;k++){ const v = cyl(ro, 0.13, 0.13, 2.1, M(0xeef3f5,{roughness:.3}), 0, 0.55 + (k%2)*0.36 + Math.floor(k/2)*0.72, k<2?-0.22:0.22, 20); v.rotation.z = Math.PI/2; roVessels.push(v); }
+const roPanel = box(ro, 0.5, 0.4, 0.06, matDark, 0.5, 1.6, 0.52);
+const roScreen = add(ro, new THREE.PlaneGeometry(0.4,0.26), new THREE.MeshBasicMaterial({color:0x56d08a}), 0.5, 1.6, 0.556);
+// UV + ozone
+const uv = cyl(wt, 0.16, 0.16, 1.2, M(0xd5dfe4,{metalness:.8, roughness:.2}), -5.9, 0.9, WZ+0.1, 24); uv.rotation.z = Math.PI/2;
+const uvGlow = cyl(wt, 0.165, 0.165, 0.5, new THREE.MeshBasicMaterial({color:0x9b6bff, transparent:true, opacity:.6}), -5.9, 0.9, WZ+0.1, 24); uvGlow.rotation.z = Math.PI/2;
+box(wt, 0.6, 1.0, 0.5, M(0x8aa3b0), -5.9, 0.5, WZ-0.8);
+const o3Light = box(wt, 0.2, 0.06, 0.02, new THREE.MeshBasicMaterial({color:0x56d08a}), -5.9, 0.85, WZ-0.54);
+const prodTank = tankAt(-4.0, 0.85, 2.6);
+
+// pipework + flow particles
+const pipeMat = M(0xb7c5cd,{metalness:.85, roughness:.25});
+function pipe(points){
+  const pts = points.map(p => new THREE.Vector3(...p));
+  const lens = []; let total = 0;
+  for (let i=0;i<pts.length-1;i++){ const m = unitCyl(0.045, pipeMat, world); placeLink(m, pts[i], pts[i+1]); const l = pts[i].distanceTo(pts[i+1]); lens.push(l); total += l; }
+  for (let i=1;i<pts.length-1;i++) add(world, new THREE.SphereGeometry(0.06,10,8), pipeMat, pts[i].x, pts[i].y, pts[i].z);
+  return {pts, lens, total};
+}
+function pipePoint(p, u, out){
+  u = ((u % p.total) + p.total) % p.total;
+  for (let i=0;i<p.lens.length;i++){ if (u <= p.lens[i]){ return out.lerpVectors(p.pts[i], p.pts[i+1], u/p.lens[i]); } u -= p.lens[i]; }
+  return out.copy(p.pts[p.pts.length-1]);
+}
+const pipeRO = pipe([[-12.0,0.45,WZ+0.8],[-10.0,0.45,WZ+0.8],[-8.9,0.45,WZ+0.8],[-6.6,0.45,WZ+0.8],[-6.6,0.9,WZ+0.1],[-5.3,0.9,WZ+0.1],[-4.6,0.9,WZ+0.1]]);
+const pipeFill = pipe([[-3.7,0.35,WZ+0.7],[-3.7,0.35,-3.6],[-3.7,2.75,-3.6],[C2.x,2.75,-3.6],[C2.x,2.75,C2.z],[C2.x,2.4,C2.z]]);
+const flowDots = [];
+const dotMat = new THREE.MeshBasicMaterial({color:0x7fdcff});
+for (let k=0;k<26;k++){ flowDots.push({m:add(world, new THREE.SphereGeometry(0.05,8,6), dotMat), p: k<14 ? pipeRO : pipeFill, u: k<14 ? k/14 : (k-14)/12}); }
+
+/* =================================================================
+   Bottles
+   ================================================================= */
+const bottleGeo = new THREE.LatheGeometry([
+  [0,0],[0.055,0],[0.066,0.012],[0.07,0.035],[0.066,0.12],[0.07,0.2],[0.07,0.27],[0.058,0.315],[0.034,0.36],[0.022,0.378],[0.022,0.41]
+].map(([r,y]) => new THREE.Vector2(r,y)), 18);
+const waterGeo = new THREE.CylinderGeometry(0.062, 0.062, 1, 16); waterGeo.translate(0, 0.5, 0);
+const capGeo = new THREE.CylinderGeometry(0.026, 0.026, 0.03, 14);
+const labelGeo = new THREE.CylinderGeometry(0.072, 0.072, 0.1, 18, 1, true);
+const bodyMat = new THREE.MeshStandardMaterial({color:0xd8f0ff, transparent:true, opacity:.32, roughness:.08, metalness:.1, depthWrite:false});
+const preformMat = new THREE.MeshStandardMaterial({color:0x7fb7d6, transparent:true, opacity:.6, roughness:.2});
+const waterMat = new THREE.MeshStandardMaterial({color:0x3eaef0, transparent:true, opacity:.6, roughness:.1, emissive:0x062a40});
+const waterLowMat = new THREE.MeshStandardMaterial({color:0xff6b63, transparent:true, opacity:.7, roughness:.1, emissive:0x3a0805});
+const capMat = M(0x1f78c8,{roughness:.4});
+const capLooseMat = M(0xff5f57,{roughness:.4, emissive:0x400a08});
+const labelMat = new THREE.MeshStandardMaterial({color:0x1b6fb8, roughness:.5, side:THREE.DoubleSide});
+const bottles = [];
+function makeBottle(n){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(bottleGeo, bodyMat); g.add(body);
+  const water = new THREE.Mesh(waterGeo, waterMat); water.position.y = 0.012; water.scale.y = 0.0001; g.add(water);
+  const cap = new THREE.Mesh(capGeo, capMat); cap.position.y = 0.42; cap.visible = false; g.add(cap);
+  const label = new THREE.Mesh(labelGeo, labelMat); label.position.y = 0.18; label.visible = false; g.add(label);
+  world.add(g);
+  return {n, g, water, cap, label, s:0, valve:n%24, target:1, fill:0, recorded:false, torque:null, rej:false, rejT:0, reason:'', x:0, z:0};
+}
+
+/* Packs */
+const packFilmGeo = new THREE.BoxGeometry(0.46, 0.43, 0.31);
+const packBottleMat = new THREE.MeshStandardMaterial({color:0x8fd0f2, transparent:true, opacity:.75, roughness:.1});
+function makePack(){
+  const g = new THREE.Group();
+  for (let i=0;i<3;i++) for (let j=0;j<2;j++){
+    const b = new THREE.Mesh(bottleGeo, packBottleMat); b.position.set((i-1)*0.145, 0, (j-0.5)*0.145); g.add(b);
+    const c = new THREE.Mesh(capGeo, capMat); c.position.set((i-1)*0.145, 0.42, (j-0.5)*0.145); g.add(c);
+  }
+  const fm = new THREE.MeshStandardMaterial({color:0xe8f6ff, transparent:true, opacity:.12, roughness:.15, depthWrite:false});
+  const film = new THREE.Mesh(packFilmGeo, fm); film.position.y = 0.215; film.scale.set(1.08,1.06,1.1); g.add(film);
+  world.add(g);
+  return {g, film, fm, x:9.7, y:CONV_Y, z:0, state:'conv', shrunk:false};
+}
+
+/* =================================================================
+   Simulation
+   ================================================================= */
+const S = { running:true, speed:1, labels:true };
+const L = {
+  t:0, v:0, vTarget:1.2, V_NOM:1.2, dist:0, nextSpawn:0, n:0,
+  good:0, rej:0, rejLow:0, rejCap:0, outTimes:[], stopT:0,
+  packQ:0, packs:[], pallet:[], pallets:0, palletHold:0,
+  robot:{busy:false, t:0, pack:null, slot:null, pos:new THREE.Vector3(PICK_X, 2.0, 0)},
+  valveMl:new Array(24).fill(500), torqueHist:[], torques:[],
+  faults:{valve:false, capper:false, ro:false}, capDrift:0,
+  w:{level:0.72, flow:5.6, tds:12, dp:1.1, o3:0.32, uv:42, ph:7.3, tdsHist:[], starved:false},
+  roll:22, blm:{temp:104, bar:38}, log:[], hAcc:0
+};
+const CYCLE = 1.7, PACK_GAP = 0.56;
+function logEv(msg, sev){ L.log.unshift({t:fmtH(L.t), msg, sev:sev||''}); if (L.log.length > 50) L.log.pop(); dirtyLog = true; }
+let dirtyLog = true;
+const slotPos = k => { const l = Math.floor(k/12), r = k%12, i = r%4, j = Math.floor(r/4); return new THREE.Vector3(PALLET.x + (i-1.5)*0.47, 0.14 + l*0.435, PALLET.z + (j-1)*0.32); };
+
+const tmpP = {x:0,z:0}, tv = new THREE.Vector3(), tv2 = new THREE.Vector3();
+function step(dt){
+  L.t += dt;
+  const W = L.w;
+  // ---- water treatment
+  const flowT = L.faults.ro ? 1.7 : 5.6, tdsT = L.faults.ro ? 44 : 12, dpT = L.faults.ro ? 2.6 : 1.1;
+  W.flow += (flowT - W.flow)*Math.min(1, dt*(L.faults.ro?0.08:0.3)) + rnd(-.03,.03);
+  W.tds += (tdsT - W.tds)*Math.min(1, dt*0.06) + rnd(-.2,.2);
+  W.dp += (dpT - W.dp)*Math.min(1, dt*0.07);
+  W.o3 += ((0.32 + Math.sin(L.t*0.11)*0.03) - W.o3)*Math.min(1,dt*0.3);
+  W.uv = 42 + Math.sin(L.t*0.07)*1.5; W.ph = 7.3 + Math.sin(L.t*0.05)*0.05;
+  const inflow = (W.level < 0.85 ? W.flow : W.flow*0.25) / 450;
+  const consume = (L.v / PITCH) * 0.004;
+  W.level = clamp(W.level + (inflow - consume)*dt, 0, 1);
+  if (!W.starved && W.level < 0.03){ W.starved = true; logEv('Product tank empty · filler starved, line stopped', 'crit'); }
+  if (W.starved && W.level > 0.14){ W.starved = false; logEv('Product tank recovered · line restarting', 'ok'); }
+  // ---- line speed
+  L.vTarget = W.starved ? 0 : L.V_NOM;
+  L.v += (L.vTarget - L.v)*Math.min(1, dt*1.5);
+  if (L.v < 0.02 && L.vTarget === 0) L.v = 0;
+  if (L.v < 0.3) L.stopT += dt;
+  L.dist += L.v*dt;
+  // spawn bottles from the blow moulder
+  while (L.dist >= L.nextSpawn){ const b = makeBottle(L.n++); b.s = L.dist - L.nextSpawn; bottles.push(b); L.nextSpawn += PITCH; }
+  if (L.faults.capper) L.capDrift = Math.min(0.85, L.capDrift + dt*0.016);
+  const gF = SEG('filler'), gC = SEG('capper');
+  for (let k = bottles.length-1; k >= 0; k--){
+    const b = bottles[k];
+    if (b.rej){
+      b.rejT += dt;
+      b.z = Math.min(1.15, b.z + dt*1.6);
+      if (b.rejT > 3.5){ world.remove(b.g); bottles.splice(k,1); }
+      continue;
+    }
+    b.s = L.dist - b.n*PITCH;
+    // fill
+    const pf = (b.s - gF.s0)/gF.len;
+    if (pf > 0 && !b.assigned){
+      b.assigned = true;
+      b.target = (L.faults.valve && b.valve === 7) ? 0.86 + rnd(-.015,.015) : 1 + gauss()*0.0011;
+    }
+    if (pf > 0) b.fill = b.target * smooth((pf-0.06)/0.74);
+    if (pf >= 0.85 && !b.recorded){ b.recorded = true; L.valveMl[b.valve] = 500*b.target; }
+    // cap
+    const pc = (b.s - gC.s0)/gC.len;
+    if (pc >= 0.5 && b.torque === null){
+      b.torque = 1.8 - L.capDrift + gauss()*0.08 * (L.faults.capper ? 1.8 : 1);
+      L.torques.push(b.torque); if (L.torques.length > 20) L.torques.shift();
+      L.torqueHist.push(b.torque); if (L.torqueHist.length > 120) L.torqueHist.shift();
+    }
+    // label
+    if (b.s >= S_LABEL && !b.labelled){ b.labelled = true; L.roll -= 0.045; if (L.roll < 2){ L.roll = 100; logEv('LBL-05 auto-splice to new label roll', 'ok'); } }
+    // inspection
+    if (b.s >= S_INSP && !b.inspected){
+      b.inspected = true;
+      const ml = 500*b.target;
+      if (ml < 497.5){ b.rej = true; b.reason = 'low'; L.rejLow++; }
+      else if (b.torque !== null && (b.torque < 1.4 || b.torque > 2.25)){ b.rej = true; b.reason = 'cap'; L.rejCap++; }
+      if (b.rej){
+        L.rej++; pathAt(b.s, tmpP); b.x = tmpP.x; b.z = tmpP.z; pusherT = 0.35;
+        if (b.reason === 'low') { b.water.material = waterLowMat; if (L.rejLow % 3 === 1) logEv(`Bottle rejected at INS-06 · fill ${ml.toFixed(1)} ml from valve V${String(b.valve+1).padStart(2,'0')}`, 'warn'); }
+        else { b.cap.material = capLooseMat; if (L.rejCap % 3 === 1) logEv(`Bottle rejected at INS-06 · cap torque ${b.torque.toFixed(2)} N·m`, 'warn'); }
+        continue;
+      } else { L.good++; L.outTimes.push(L.t); }
+    }
+    if (b.s >= PATH_LEN){ world.remove(b.g); bottles.splice(k,1); L.packQ++; }
+  }
+  while (L.outTimes.length && L.outTimes[0] < L.t - 60) L.outTimes.shift();
+  // ---- packer → packs
+  if (L.packQ >= 6){ L.packQ -= 6; L.packs.push(makePack()); pressT = 0.4; }
+  const order = L.packs.filter(p => p.state === 'conv' || p.state === 'wait').sort((a,b) => b.x - a.x);
+  let ahead = Infinity;
+  for (const p of order){
+    if (p.state === 'wait'){ ahead = p.x; continue; }
+    p.x = Math.min(p.x + 0.9*dt, PICK_X, ahead - PACK_GAP);
+    if (!p.shrunk && p.x > 11.2){ p.shrunk = true; }
+    ahead = p.x;
+  }
+  // ---- palletiser robot
+  const R = L.robot;
+  if (L.palletHold > 0){
+    L.palletHold -= dt;
+    if (L.palletHold <= 0){ L.pallet.forEach(p => world.remove(p.g)); L.pallet = []; L.pallets++; logEv(`Pallet #${L.pallets} wrapped and released · 216 bottles`, 'ok'); }
+  }
+  if (!R.busy && L.palletHold <= 0 && L.pallet.length < 36){
+    const p = L.packs.find(q => q.state === 'conv' && q.x >= PICK_X - 0.01);
+    if (p){ R.busy = true; R.t = 0; R.pack = p; R.slot = L.pallet.length; p.state = 'wait'; }
+  }
+  if (R.busy){
+    R.t += dt/CYCLE;
+    const u = R.t, pUp = tv.set(PICK_X, 2.0, 0), pDn = new THREE.Vector3(PICK_X, CONV_Y+0.46, 0);
+    const sp = slotPos(R.slot), sUp = new THREE.Vector3(sp.x, 2.0, sp.z), sDn = new THREE.Vector3(sp.x, sp.y+0.46, sp.z);
+    if (u < 0.15) R.pos.lerpVectors(pUp, pDn, smooth(u/0.15));
+    else if (u < 0.3){ R.pack.state = 'robot'; R.pos.lerpVectors(pDn, pUp, smooth((u-0.15)/0.15)); }
+    else if (u < 0.7) R.pos.lerpVectors(pUp, sUp, smooth((u-0.3)/0.4));
+    else if (u < 0.82) R.pos.lerpVectors(sUp, sDn, smooth((u-0.7)/0.12));
+    else {
+      if (R.pack){ const p = R.pack; p.state = 'pallet'; p.x = sp.x; p.y = sp.y; p.z = sp.z; L.packs.splice(L.packs.indexOf(p),1); L.pallet.push(p); R.pack = null;
+        if (L.pallet.length === 36){ L.palletHold = 2.5; } }
+      const f = smooth((u-0.82)/0.18); R.pos.lerpVectors(sDn, pUp, f); R.pos.y += Math.sin(f*Math.PI)*0.25;
+    }
+    if (R.t >= 1){ R.busy = false; R.pos.copy(pUp); }
+    if (R.pack && R.pack.state === 'robot'){ R.pack.x = R.pos.x; R.pack.y = R.pos.y - 0.46; R.pack.z = R.pos.z; }
+  }
+  // ---- histories
+  L.hAcc += dt;
+  if (L.hAcc > 0.5){ L.hAcc = 0; W.tdsHist.push(W.tds); if (W.tdsHist.length > 120) W.tdsHist.shift(); }
+  if (L.roll < 8 && !L.rollWarned){ L.rollWarned = true; logEv('LBL-05 label roll below 8% · auto-splice armed', 'warn'); }
+  if (L.roll > 50) L.rollWarned = false;
+  L.blm.temp = 104 + Math.sin(L.t*0.2)*0.8; L.blm.bar = L.v > 0.3 ? 38 + Math.sin(L.t*1.3)*0.6 : 6;
+}
+
+/* =================================================================
+   Render update
+   ================================================================= */
+let pusherT = 0, pressT = 0;
+const gR = SEG('rinser'), gF = SEG('filler'), gC = SEG('capper');
+function render(dt){
+  const now = performance.now()/1000;
+  // bottles
+  for (const b of bottles){
+    if (b.rej){ b.g.position.set(b.x + Math.min(0.5, b.rejT*0.5), CONV_Y, b.z); continue; }
+    pathAt(b.s, tmpP);
+    b.g.position.set(tmpP.x, CONV_Y, tmpP.z);
+    const preform = b.s < 0.25;
+    b.g.scale.setScalar(preform ? 0.55 + b.s/0.25*0.45 : 1);
+    b.water.scale.y = Math.max(0.0001, b.fill*0.3);
+    b.cap.visible = b.torque !== null;
+    b.label.visible = !!b.labelled;
+  }
+  // rinser wheel + spray
+  rinser.rotation.y = -wheelAngle(gR, L.dist);
+  const running = L.v > 0.3;
+  spray.forEach(s => {
+    const u = s.userData;
+    if (u.life <= 0 && running && Math.random() < 0.35){ const a = gR.a0 - Math.random()*Math.PI/2; u.life = rnd(.2,.45); s.position.set(C1.x + R1*Math.cos(a), CONV_Y+0.5, C1.z + R1*Math.sin(a)); u.v.set(rnd(-.3,.3), rnd(-1.6,-.6), rnd(-.3,.3)); }
+    if (u.life > 0){ u.life -= dt; s.position.addScaledVector(u.v, dt); if (u.life <= 0) s.position.y = -5; }
+  });
+  // filler valves aligned to bottle lattice: valve k sits over bottle n where n%24==k
+  const A = wheelAngle(gF, L.dist);
+  for (let k=0;k<24;k++){
+    const a = A - gF.sign*k*PITCH/R2;
+    const v = valves[k];
+    const x = Math.cos(a)*R2, z = Math.sin(a)*R2;
+    v.g.position.set(x, CONV_Y+0.78, z);
+    v.arm.position.set(-Math.cos(a)*(R2-0.9)/2, 0.06, -Math.sin(a)*(R2-0.9)/2); v.arm.rotation.y = -a;
+    const bad = L.faults.valve && k === 7;
+    const pulse = bad ? 0.5+0.5*Math.sin(now*6) : 0;
+    v.body.material.emissive.setRGB(pulse*0.9, pulse*0.1, pulse*0.08);
+    // stream if a bottle is filling under it
+    let filling = false;
+    const rel = gF.sign*(a - gF.a0); const rr = ((rel % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI);
+    const pf = rr / Math.PI;
+    if (running && pf > 0.06 && pf < 0.8) filling = true;
+    const st = streams[k];
+    st.visible = filling;
+    if (filling){ tv.set(C2.x + x, CONV_Y+0.46, C2.z + z); tv2.set(C2.x + x, CONV_Y+0.24 + 0.0, C2.z + z); placeLink(st, tv, tv2); }
+  }
+  fillerRot.rotation.y = 0;
+  // capper heads
+  const A3 = wheelAngle(gC, L.dist);
+  for (let k=0;k<12;k++){
+    const a = A3 - gC.sign*k*PITCH/R3;
+    const h = capHeads[k];
+    const rel = ((gC.sign*(a - gC.a0)) % (2*Math.PI) + 2*Math.PI) % (2*Math.PI);
+    const pc = rel / (Math.PI/2);
+    const down = pc > 0.15 && pc < 0.95 ? Math.sin(clamp((pc-0.15)/0.8,0,1)*Math.PI) : 0;
+    h.g.position.set(Math.cos(a)*R3, CONV_Y + 0.62 + 0.45 - down*0.18, Math.sin(a)*R3);
+    h.chuck.rotation.y += down > 0.2 && running ? dt*30 : 0;
+    const slip = L.faults.capper && down > 0.2 ? 0.5+0.5*Math.sin(now*8) : 0;
+    h.chuck.material.emissive.setRGB(slip*0.8, slip*0.1, slip*0.05);
+  }
+  // blow moulder
+  blowWheel.rotation.y = -L.dist/0.58*0.35;
+  heater.material.emissiveIntensity = 0.45 + 0.25*Math.sin(now*3);
+  // labeller
+  labelRoll.scale.set(0.45 + 0.55*L.roll/100, 1, 0.45 + 0.55*L.roll/100);
+  labelRoll.rotation.y += running ? dt*3 : 0; drum.rotation.y += running ? dt*8 : 0;
+  // inspection
+  const flash = running && Math.sin(now*24) > 0.2;
+  insLight.material.color.setHex(flash ? 0xd9ccff : 0x403760);
+  pusherT = Math.max(0, pusherT - dt);
+  pusher.position.z = -0.35 + (pusherT > 0 ? Math.sin((0.35-pusherT)/0.35*Math.PI)*0.3 : 0);
+  // packer press
+  pressT = Math.max(0, pressT - dt);
+  pkPress.position.y = 1.6 - (pressT > 0 ? Math.sin((0.4-pressT)/0.4*Math.PI)*0.4 : 0);
+  filmRoll.rotation.y += running ? dt*2 : 0;
+  tunnelGlow.material.opacity = 0.45 + 0.15*Math.sin(now*2);
+  // packs
+  for (const p of L.packs.concat(L.pallet)){
+    p.g.position.set(p.x, p.state==='conv'||p.state==='wait' ? CONV_Y : p.y, p.z);
+    if (p.shrunk && p.film.scale.x > 1.0){ p.film.scale.set(1,1,1); p.fm.opacity = 0.32; }
+  }
+  // robot
+  const R = L.robot;
+  const dx = R.pos.x - ROBOT.x, dz = R.pos.z - ROBOT.z, reach = Math.hypot(dx,dz), yaw = Math.atan2(dz,dx);
+  rbArm.scale.x = reach + 0.2; rbArm.position.set(ROBOT.x + Math.cos(yaw)*reach/2, 2.5, ROBOT.z + Math.sin(yaw)*reach/2); rbArm.rotation.y = -yaw;
+  tv.set(R.pos.x, 2.5, R.pos.z); placeLink(rbRod, tv, R.pos);
+  rbGrip.position.copy(R.pos); rbGrip.rotation.y = 0;
+  palletRing.material.color.setHex(L.palletHold > 0 ? 0x4cc3ff : 0x56d08a);
+  // water
+  const W = L.w;
+  [rawTank, prodTank].forEach((t,i) => {
+    const lvl = i===0 ? 0.62 + Math.sin(L.t*0.03)*0.05 : W.level;
+    const h = Math.max(0.001, lvl*t.h);
+    t.water.scale.y = h; t.water.position.y = 0.2 + h/2;
+  });
+  uvGlow.material.opacity = 0.45 + 0.2*Math.sin(now*5);
+  roScreen.material.color.setHex(L.faults.ro || W.tds > 25 ? 0xf3b64a : 0x56d08a);
+  flowDots.forEach(d => {
+    const speed = d.p === pipeRO ? W.flow/5.6*1.4 : L.v/L.V_NOM*1.6;
+    d.u += dt*speed/d.p.total;
+    pipePoint(d.p, d.u*d.p.total, d.m.position);
+    d.m.visible = speed > 0.05;
+  });
+}
+
+/* =================================================================
+   Labels
+   ================================================================= */
+const tagsEl = $('#tags'), labels = [];
+function addLabel(pos){ const el = document.createElement('div'); el.className = 'tag'; tagsEl.appendChild(el); const T = {el, pos:new THREE.Vector3(...pos), html:'', cls:''}; labels.push(T); return T; }
+function setLabel(T, html, cls){ if (T.html !== html){ T.el.innerHTML = html; T.html = html; } const c = 'tag ' + (cls||''); if (T.cls !== c){ T.el.className = c; T.cls = c; } }
+const LB = {
+  raw: addLabel([-12.0, 3.2, WZ]),
+  ro: addLabel([-7.8, 2.2, WZ]),
+  uv: addLabel([-5.9, 1.4, WZ+0.1]),
+  tank: addLabel([-4.0, 3.5, WZ]),
+  blm: addLabel([-11.1, 2.6, 0]),
+  rinser: addLabel([C1.x, 2.3, C1.z]),
+  filler: addLabel([C2.x, 3.0, C2.z]),
+  capper: addLabel([C3.x, 2.6, C3.z]),
+  lbl: addLabel([X_LABEL, 1.9, -0.65]),
+  ins: addLabel([X_INSP, 2.35, 0]),
+  pkr: addLabel([8.9, 2.2, 0]),
+  tun: addLabel([11.0, 2.05, 0]),
+  pal: addLabel([PALLET.x, 2.2, PALLET.z])
+};
+const _p = new THREE.Vector3();
+function updateLabels(){
+  const w = view.clientWidth, h = view.clientHeight;
+  for (const T of labels){
+    if (!S.labels){ T.el.style.display = 'none'; continue; }
+    _p.copy(T.pos).project(camera);
+    if (_p.z > 1 || Math.abs(_p.x) > 1.1 || Math.abs(_p.y) > 1.1){ T.el.style.display = 'none'; continue; }
+    T.el.style.display = 'block';
+    T.el.style.transform = `translate(${((_p.x*.5+.5)*w).toFixed(1)}px,${((-_p.y*.5+.5)*h).toFixed(1)}px) translate(-50%,-110%)`;
+  }
+}
+
+/* =================================================================
+   Panels
+   ================================================================= */
+const MACH = [
+  {id:'WTR-00', name:'Water treatment', st:() => L.faults.ro ? (L.w.starved ? 'crit' : 'warn') : 'run', rd:() => `${L.w.flow.toFixed(1)} m³/h · ${L.w.tds.toFixed(0)} ppm`},
+  {id:'BLM-01', name:'Stretch blow moulder', st:() => stopped() ? 'stop' : 'run', rd:() => `${L.blm.bar.toFixed(0)} bar · ${L.blm.temp.toFixed(0)} °C`},
+  {id:'RNS-02', name:'Ozonated rinser', st:() => stopped() ? 'stop' : 'run', rd:() => `${(L.w.o3).toFixed(2)} ppm O₃`},
+  {id:'FIL-03', name:'24-valve gravity filler', st:() => L.w.starved ? 'starved' : (L.faults.valve ? 'warn' : 'run'), rd:() => `${avgMl().toFixed(1)} ml avg`},
+  {id:'CAP-04', name:'12-head screw capper', st:() => stopped() ? 'stop' : (L.faults.capper ? (meanTq() < 1.45 ? 'crit':'warn') : 'run'), rd:() => `${meanTq().toFixed(2)} N·m`},
+  {id:'LBL-05', name:'Roll-fed labeller', st:() => stopped() ? 'stop' : (L.roll < 8 ? 'warn' : 'run'), rd:() => `roll ${L.roll.toFixed(0)}%`},
+  {id:'INS-06', name:'Fill & cap inspection', st:() => stopped() ? 'stop' : (rejRate() > 3 ? 'warn' : 'run'), rd:() => `${L.rej} rejected`},
+  {id:'PCK-07', name:'Shrink packer + tunnel', st:() => L.packs.length > 7 ? 'warn' : (stopped() && !L.packs.length ? 'stop' : 'run'), rd:() => `${L.packs.length} packs queued`},
+  {id:'PAL-08', name:'Palletiser', st:() => L.palletHold > 0 ? 'wrap' : 'run', rd:() => `${L.pallet.length}/36 packs`}
+];
+const stopped = () => L.v < 0.3;
+const avgMl = () => L.valveMl.reduce((a,b)=>a+b,0)/24;
+const meanTq = () => L.torques.length ? L.torques.reduce((a,b)=>a+b,0)/L.torques.length : 1.8;
+const rejRate = () => (L.good+L.rej) ? L.rej/(L.good+L.rej)*100 : 0;
+const mRows = $('#mRows');
+MACH.forEach(m => mRows.insertAdjacentHTML('beforeend', `<tr><td><b>${m.id}</b><span class="sub">${m.name}</span></td><td><span class="pill"></span></td><td class="num"></td></tr>`));
+const pillMap = {run:['Running',''], stop:['Stopped','idle'], starved:['Starved','crit'], warn:['Degrading','warn'], crit:['Alarm','crit'], wrap:['Wrapping','idle']};
+const valvesEl = $('#valves');
+for (let k=0;k<24;k++) valvesEl.insertAdjacentHTML('beforeend', `<div class="valve"><b>V${String(k+1).padStart(2,'0')}</b><span>500.0</span></div>`);
+
+function chart(cv, data, lo, hi, color, band, line){
+  const c = cv.getContext('2d'), w = cv.width, h = cv.height;
+  c.clearRect(0,0,w,h);
+  const Y = v => h - clamp((v-lo)/(hi-lo),0,1)*(h-8) - 4;
+  if (band){ c.fillStyle = 'rgba(86,208,138,.08)'; c.fillRect(0, Y(band[1]), w, Y(band[0]) - Y(band[1])); c.strokeStyle = 'rgba(86,208,138,.35)'; c.setLineDash([5,5]); [band[0],band[1]].forEach(v => { c.beginPath(); c.moveTo(0,Y(v)); c.lineTo(w,Y(v)); c.stroke(); }); c.setLineDash([]); }
+  if (line != null){ c.strokeStyle = 'rgba(243,182,74,.45)'; c.setLineDash([5,5]); c.beginPath(); c.moveTo(0,Y(line)); c.lineTo(w,Y(line)); c.stroke(); c.setLineDash([]); }
+  if (data.length < 2) return;
+  c.beginPath(); data.forEach((v,k) => { const x = k/(data.length-1)*w; k ? c.lineTo(x,Y(v)) : c.moveTo(x,Y(v)); });
+  c.strokeStyle = color; c.lineWidth = 2.5; c.stroke();
+  c.lineTo(w,h); c.lineTo(0,h); c.closePath(); c.fillStyle = color + '22'; c.fill();
+  c.fillStyle = color; c.beginPath(); c.arc(w-4, Y(data[data.length-1]), 4, 0, Math.PI*2); c.fill();
+}
+const alertHTML = (sev, t, b) => `<div class="alert ${sev}"><span class="sev"></span><div><b>${t}</b><p>${b}</p></div></div>`;
+
+function updatePanels(){
+  const W = L.w;
+  const st = $('#hudState'); st.className = 'chip' + (stopped() ? ' stop' : '');
+  $('#hudStateTxt').textContent = W.starved ? 'Stopped · filler starved' : (stopped() ? 'Ramping' : `Running · ${Math.round(L.v/PITCH*3600).toLocaleString()} bph`);
+  $('#hudMain').textContent = `Line 1 · ${fmtH(L.t)}`;
+  $('#shiftClock').textContent = `Shift ${fmtH(L.t)}`;
+  const bph = L.t > 10 ? L.outTimes.length / Math.min(60, L.t) * 3600 : 0;
+  $('#kBph').textContent = Math.round(bph).toLocaleString();
+  const avail = L.t ? 1 - L.stopT/L.t : 1, perf = clamp(bph / (L.V_NOM/PITCH*3600), 0, 1), q = 1 - rejRate()/100;
+  $('#kOee').textContent = L.t > 20 ? Math.round(avail*perf*q*100) : '—';
+  $('#kGood').textContent = L.good.toLocaleString();
+  $('#kRej').textContent = rejRate().toFixed(1);
+  // alerts
+  const al = [];
+  if (L.faults.ro){
+    const net = (W.level < 0.85 ? W.flow : W.flow*.25)/450 - (L.V_NOM/PITCH)*0.004;
+    const tte = net < 0 ? W.level/(-net) : Infinity;
+    al.push(alertHTML(W.starved ? 'crit' : 'warn', 'RO membrane fouling',
+      W.starved ? `Permeate flow down to ${W.flow.toFixed(1)} m³/h, below filler demand of ${((L.V_NOM/PITCH)*0.5*3.6).toFixed(1)} m³/h. Line is stopped until the tank refills. Run a membrane clean (CIP).`
+      : `ΔP ${W.dp.toFixed(1)} bar and TDS ${W.tds.toFixed(0)} ppm rising. Permeate ${W.flow.toFixed(1)} m³/h is below filler demand. Product tank empty in ${isFinite(tte) ? fmt(tte) : '—'} at current speed.`));
+  }
+  if (L.faults.valve){
+    al.push(alertHTML('crit', 'Filler valve V07 seal wear', `Last fill ${L.valveMl[7].toFixed(1)} ml against 500.0 ml target. Every 24th bottle is under-filled and rejected (${L.rejLow} so far). Replace V07 seal at next stop, or isolate the valve to keep running.`));
+  }
+  if (L.faults.capper){
+    const m = meanTq(), slope = 0.016*0.5;
+    const tts = m > 1.4 ? (m - 1.4)/0.016 : 0;
+    al.push(alertHTML(m < 1.45 ? 'crit' : 'warn', 'Capper head clutch slip', m > 1.4 ? `Mean torque ${m.toFixed(2)} N·m, trending down. Predicted out of spec (1.4 N·m) in ${fmt(tts)}. Loose caps risk leaks in transit.` : `Mean torque ${m.toFixed(2)} N·m, below the 1.4 N·m minimum. ${L.rejCap} loose caps rejected. Adjust or replace capping head clutches.`));
+  }
+  if (!al.length){
+    if (L.roll < 8) al.push(alertHTML('warn', 'Label roll nearly finished', `${L.roll.toFixed(0)}% left on LBL-05. Auto-splice will change to the standby roll with no stop.`));
+    else al.push(alertHTML('', 'Line running to plan', `All 24 valves within ±1.5 ml, cap torque in spec, treated water supply ahead of demand. Next label roll change in about ${fmt((L.roll-2)/0.045*PITCH/L.V_NOM)}.`));
+  }
+  $('#alerts').innerHTML = al.join('');
+  // machines
+  [...mRows.children].forEach((tr,i) => {
+    const m = MACH[i], s = m.st(), [t,c] = pillMap[s] || pillMap.run;
+    const pill = tr.querySelector('.pill'); pill.textContent = t; pill.className = 'pill ' + c;
+    tr.children[2].textContent = m.rd();
+  });
+  // valves
+  [...valvesEl.children].forEach((el,k) => {
+    const ml = L.valveMl[k], d = Math.abs(ml-500);
+    el.className = 'valve' + (d > 2.5 ? ' crit' : d > 1.5 ? ' warn' : '');
+    el.lastChild.textContent = ml.toFixed(1);
+  });
+  // torque
+  const m = meanTq();
+  chart($('#torqueChart'), L.torqueHist, 0.8, 2.6, m < 1.4 ? '#ff5f57' : L.faults.capper ? '#f3b64a' : '#4cc3ff', [1.4, 2.2]);
+  const tm = $('#tqMean'); tm.textContent = `${m.toFixed(2)} N·m`; tm.style.color = m < 1.4 ? 'var(--crit)' : '';
+  $('#tqRej').textContent = L.rejCap;
+  // water
+  const tank = $('#tank'); tank.querySelector('i').style.height = (W.level*100).toFixed(1)+'%'; tank.querySelector('span').textContent = Math.round(W.level*100)+'%';
+  tank.style.borderColor = W.level < 0.2 ? 'var(--crit)' : W.level < 0.4 ? 'var(--warn)' : '';
+  chart($('#tdsChart'), W.tdsHist, 0, 60, W.tds > 30 ? '#f3b64a' : '#4cc3ff', null, 30);
+  $('#wFlow').textContent = `${W.flow.toFixed(2)} m³/h`;
+  $('#wTds').textContent = `${W.tds.toFixed(1)} ppm`;
+  $('#wDp').textContent = `${W.dp.toFixed(2)} bar`;
+  $('#wO3').textContent = `${W.o3.toFixed(2)} ppm`;
+  $('#wUv').textContent = `${W.uv.toFixed(0)} mJ/cm² · ${W.ph.toFixed(2)}`;
+  // pallet
+  $('#pNow').textContent = L.palletHold > 0 ? 'Wrapping…' : `${L.pallet.length} / 36 packs`;
+  $('#pBar').style.width = (L.pallet.length/36*100)+'%';
+  $('#pDone').textContent = L.pallets;
+  $('#pRoll').textContent = `${L.roll.toFixed(1)}%`;
+  if (dirtyLog){ $('#log').innerHTML = L.log.map(e => `<li class="${e.sev}"><time>${e.t}</time><span class="d"></span><span>${e.msg}</span></li>`).join(''); dirtyLog = false; }
+  // labels
+  setLabel(LB.raw, `Raw water <span>·</span> borewell`, 'idle');
+  setLabel(LB.ro, `RO skid <span>·</span> ${W.tds.toFixed(0)} ppm`, L.faults.ro ? (W.starved?'crit':'warn') : '');
+  setLabel(LB.uv, `UV <span>·</span> ${W.uv.toFixed(0)} mJ/cm²`, '');
+  setLabel(LB.tank, `Product tank <span>·</span> ${Math.round(W.level*100)}%`, W.level < 0.2 ? 'crit' : W.level < 0.4 ? 'warn' : '');
+  setLabel(LB.blm, `BLM-01 <span>·</span> ${L.blm.bar.toFixed(0)} bar`, stopped() ? 'idle' : '');
+  setLabel(LB.rinser, `RNS-02 rinser`, stopped() ? 'idle' : '');
+  setLabel(LB.filler, `FIL-03 <span>·</span> ${avgMl().toFixed(1)} ml`, W.starved ? 'crit' : L.faults.valve ? 'crit' : '');
+  setLabel(LB.capper, `CAP-04 <span>·</span> ${m.toFixed(2)} N·m`, L.faults.capper ? (m < 1.4 ? 'crit' : 'warn') : (stopped()?'idle':''));
+  setLabel(LB.lbl, `LBL-05 <span>·</span> roll ${L.roll.toFixed(0)}%`, L.roll < 8 ? 'warn' : (stopped()?'idle':''));
+  setLabel(LB.ins, `INS-06 <span>·</span> ${L.rej} rejects`, rejRate() > 3 ? 'warn' : '');
+  setLabel(LB.pkr, `PCK-07 shrink packer`, '');
+  setLabel(LB.tun, `Shrink tunnel <span>·</span> 185 °C`, '');
+  setLabel(LB.pal, `PAL-08 <span>·</span> ${L.pallet.length}/36`, L.palletHold > 0 ? 'idle' : '');
+}
+
+/* =================================================================
+   Controls
+   ================================================================= */
+const CAMS = {
+  overview:{pos:[3, 11, 15], target:[1.5, 0.8, -1.6]},
+  water:{pos:[-5.5, 4.2, 1.2], target:[-8, 1.2, -5.6]},
+  mono:{pos:[-2.6, 3.6, 4.2], target:[-4.4, 1.2, -0.9]},
+  pack:{pos:[10.5, 4.2, 6.2], target:[12.6, 0.9, 0.2]}
+};
+let camKey = 'overview';
+function setCam(key){
+  camKey = key;
+  const c = CAMS[key], t = new THREE.Vector3(...c.target), p = new THREE.Vector3(...c.pos);
+  const aspect = view.clientWidth / Math.max(1, view.clientHeight);
+  const k = aspect < 1 ? (key==='overview' ? 1.6 : 1.45) : aspect < 1.4 ? (key==='overview' ? 1.35 : 1.15) : 1;
+  p.sub(t).multiplyScalar(k).add(t);
+  camera.position.copy(p); controls.target.copy(t); controls.update();
+  [...$('#camSeg').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.c === key));
+}
+$('#camSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setCam(b.dataset.c); });
+$('#playBtn').onclick = () => { S.running = !S.running; $('#playBtn').textContent = S.running ? 'Pause' : 'Play'; };
+$('#speedSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.speed = +b.dataset.s; [...$('#speedSeg').children].forEach(x => x.setAttribute('aria-pressed', x===b)); });
+$('#labelBtn').onclick = () => { S.labels = !S.labels; $('#labelBtn').setAttribute('aria-pressed', S.labels); };
+const menu = $('#faultMenu'), fBtn = $('#faultBtn');
+function closeMenu(){ menu.hidden = true; fBtn.setAttribute('aria-expanded','false'); }
+fBtn.onclick = e => { e.stopPropagation(); const open = menu.hidden; menu.hidden = !open; fBtn.setAttribute('aria-expanded', String(open)); [...menu.children].forEach(b => b.disabled = L.faults[b.dataset.f]); };
+document.addEventListener('click', e => { if (!menu.contains(e.target)) closeMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+const FAULT_MSG = {valve:'Fault injected · FIL-03 valve V07 seal wear', capper:'Fault injected · CAP-04 head clutch slipping', ro:'Fault injected · RO membrane fouling'};
+const FAULT_CAM = {valve:'mono', capper:'mono', ro:'water'};
+menu.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const f = b.dataset.f; L.faults[f] = true; logEv(FAULT_MSG[f], 'crit'); closeMenu(); setCam(FAULT_CAM[f]); syncFix(); updatePanels();
+});
+function syncFix(){ const any = Object.values(L.faults).some(Boolean); $('#fixBtn').hidden = !any; }
+$('#fixBtn').onclick = () => {
+  if (L.faults.valve) logEv('Maintenance · V07 seal replaced, fill verified at 500.1 ml', 'ok');
+  if (L.faults.capper){ logEv('Maintenance · capping head clutches reset to 1.8 N·m', 'ok'); L.capDrift = 0; }
+  if (L.faults.ro) logEv('Maintenance · RO membrane CIP started, permeate flow recovering', 'ok');
+  L.faults = {valve:false, capper:false, ro:false};
+  syncFix(); updatePanels();
+};
+function resize(){ const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h, false); camera.aspect = w/Math.max(1,h); camera.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(view);
+
+/* ---------------- Warm start: line already in production ---------------- */
+logEv('Twin connected · 9 machines streaming over OPC UA', 'ok');
+L.v = L.V_NOM;
+for (let k=0;k<1500;k++) step(0.05);
+L.log = L.log.filter(e => e.sev !== 'warn').slice(0,6);
+resize(); setCam(view.clientWidth < view.clientHeight ? 'mono' : 'overview'); updatePanels();
+
+let last = performance.now(), pAcc = 0;
+function loop(now){
+  const rdt = Math.min(0.05, (now-last)/1000); last = now;
+  const dt = S.running ? rdt*S.speed : 0;
+  if (dt > 0){ const n = Math.ceil(dt/0.05), sd = dt/n; for (let k=0;k<n;k++) step(sd); }
+  render(dt);
+  controls.update();
+  renderer.render(scene, camera);
+  updateLabels();
+  pAcc += rdt; if (pAcc > 0.2){ pAcc = 0; updatePanels(); }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
